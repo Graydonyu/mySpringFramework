@@ -8,7 +8,7 @@
 
     <servlet>
         <servlet-name>mymvc</servlet-name>
-        <servlet-class>ygd.framework.servlet.MyDispatcherServlet</servlet-class>
+        <servlet-class>com.ygd.framework.servlet.MyDispatcherServlet</servlet-class>
         <init-param>
             <param-name>contextConfigLocation</param-name><!--springmvc的固定值-->
             <param-value>application.properties</param-value>

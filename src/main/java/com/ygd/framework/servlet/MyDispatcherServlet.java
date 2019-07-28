@@ -40,11 +40,14 @@ public class MyDispatcherServlet extends HttpServlet {
 
     @Override
     public void init(ServletConfig config) throws ServletException {
+        System.out.println("----->开始初始化");
+
         //1.读取配置文件
         doLoadConfig(config.getInitParameter("contextConfigLocation"));
 
         //2.扫描包路径
         doScanner(contextConfig.getProperty("scanPackage"));
+        System.out.println("----->扫描完成");
 
         //3.初始化所有相关的类
         doInstance();
@@ -53,10 +56,13 @@ public class MyDispatcherServlet extends HttpServlet {
         doAutoWired();
 
         //5.初始化HandlerMapping
-        initHanderMapping();
+        initHandlerMapping();
+
+        System.out.println("----->初始化完成");
     }
 
-    private void initHanderMapping() {
+    private void initHandlerMapping() {
+        System.out.println("----->初始化HandlerMapping完成");
     }
 
     private void doAutoWired() {
@@ -79,12 +85,22 @@ public class MyDispatcherServlet extends HttpServlet {
                 String beanName = myAutowired.value();
 
                 if ("".equals(beanName)) {
-                    beanName = field.getName();
-                    String name = field.getType().getName();
-                    System.out.println(beanName + "----->" + name);
+                    beanName = field.getType().getName();
+                }
+
+                //即使是private也可以暴力访问
+                field.setAccessible(true);
+
+                try {
+                    //依赖注入
+                    field.set(entry.getValue(),ioc.get(beanName));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
                 }
             }
         }
+
+        System.out.println("----->自动注入完成");
     }
 
     private void doInstance() {
@@ -125,6 +141,8 @@ public class MyDispatcherServlet extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        System.out.println("----->实例化完成");
     }
 
     private String lowerFirstCase(String className) {
@@ -138,7 +156,7 @@ public class MyDispatcherServlet extends HttpServlet {
         if (scanPackage != null && !scanPackage.isBlank()) {
             scanPath = scanPackage.replaceAll("\\.", "/");
         }
-        URL url = this.getClass().getClassLoader().getResource("/" + scanPath);
+        URL url = this.getClass().getClassLoader().getResource(scanPath);
 
         File fileDir = new File(url.getFile());
 
@@ -148,7 +166,7 @@ public class MyDispatcherServlet extends HttpServlet {
                 //递归调用直到完成扫描
                 doScanner(scanPackage + "." + file.getName());
             } else {
-                String beanName = file.getName().replace(".class", "");
+                String beanName = scanPackage + "." + file.getName().replace(".class", "");
                 beanNameList.add(beanName);
             }
         }
@@ -170,6 +188,8 @@ public class MyDispatcherServlet extends HttpServlet {
                 }
             }
         }
+
+        System.out.println("----->配置文件加载完成");
     }
 
     private void putIoc(Map<String, Object> ioc, String beanName, Class<?> clazz) throws Exception{

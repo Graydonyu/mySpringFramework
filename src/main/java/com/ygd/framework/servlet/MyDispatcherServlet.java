@@ -1,5 +1,6 @@
 package com.ygd.framework.servlet;
 
+import com.ygd.framework.annotation.MyAutowired;
 import com.ygd.framework.annotation.MyController;
 import com.ygd.framework.annotation.MyService;
 
@@ -11,6 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -63,7 +65,25 @@ public class MyDispatcherServlet extends HttpServlet {
         }
 
         for (Map.Entry<String, Object> entry : ioc.entrySet()) {
-            
+            //取出所有字段
+            Class<?> clazz = entry.getValue().getClass();
+            Field[] fields = clazz.getDeclaredFields();
+
+            for (Field field : fields) {
+                if (!field.isAnnotationPresent(MyAutowired.class)) {
+                    continue;
+                }
+
+                MyAutowired myAutowired = field.getAnnotation(MyAutowired.class);
+
+                String beanName = myAutowired.value();
+
+                if ("".equals(beanName)) {
+                    beanName = field.getName();
+                    String name = field.getType().getName();
+                    System.out.println(beanName + "----->" + name);
+                }
+            }
         }
     }
 
@@ -79,8 +99,8 @@ public class MyDispatcherServlet extends HttpServlet {
                 if (clazz.isAnnotationPresent(MyController.class)) {
                     String beanName = lowerFirstCase(clazz.getName());
 
-                    ioc.put(beanName,clazz.newInstance());
-                }else if(clazz.isAnnotationPresent(MyService.class)){
+                    putIoc(ioc,beanName,clazz);
+                } else if (clazz.isAnnotationPresent(MyService.class)) {
                     //使用注解值
                     MyService myService = clazz.getAnnotation(MyService.class);
                     String beanName = myService.value();
@@ -89,18 +109,20 @@ public class MyDispatcherServlet extends HttpServlet {
                         beanName = lowerFirstCase(clazz.getName());
                     }
 
-                    //service
-                    ioc.put(beanName,clazz.newInstance());
+                    //serviceImpl
+                    //ioc.put(beanName, clazz.newInstance());
+                    putIoc(ioc,beanName,clazz);
 
                     //接口名-》实现类
                     for (Class<?> i : clazz.getInterfaces()) {
-                        ioc.put(i.getName(),clazz.newInstance());
+                        //ioc.put(i.getName(), clazz.newInstance());
+                        putIoc(ioc,i.getName(),clazz);
                     }
-                }else{
+                } else {
                     continue;
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -113,8 +135,8 @@ public class MyDispatcherServlet extends HttpServlet {
 
     private void doScanner(String scanPackage) {
         String scanPath = "";
-        if (scanPackage != null && scanPackage.isBlank()) {
-            scanPackage.replaceAll("\\.", "/");
+        if (scanPackage != null && !scanPackage.isBlank()) {
+            scanPath = scanPackage.replaceAll("\\.", "/");
         }
         URL url = this.getClass().getClassLoader().getResource("/" + scanPath);
 
@@ -126,7 +148,7 @@ public class MyDispatcherServlet extends HttpServlet {
                 //递归调用直到完成扫描
                 doScanner(scanPackage + "." + file.getName());
             } else {
-                String beanName = file.getName().replace(".class","");
+                String beanName = file.getName().replace(".class", "");
                 beanNameList.add(beanName);
             }
         }
@@ -148,5 +170,13 @@ public class MyDispatcherServlet extends HttpServlet {
                 }
             }
         }
+    }
+
+    private void putIoc(Map<String, Object> ioc, String beanName, Class<?> clazz) throws Exception{
+        if (ioc.containsKey(beanName)) {
+            throw new RuntimeException("ioc容器key值冲突");
+        }
+
+        ioc.put(beanName, clazz.newInstance());
     }
 }

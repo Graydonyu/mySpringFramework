@@ -2,6 +2,7 @@ package com.ygd.framework.servlet;
 
 import com.ygd.framework.annotation.MyAutowired;
 import com.ygd.framework.annotation.MyController;
+import com.ygd.framework.annotation.MyRequestMapping;
 import com.ygd.framework.annotation.MyService;
 
 import javax.servlet.ServletConfig;
@@ -13,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,11 +24,23 @@ import java.util.Properties;
 
 public class MyDispatcherServlet extends HttpServlet {
 
-    private Properties contextConfig = new Properties();
+    private static Properties contextConfig;
 
-    private List<String> beanNameList = new ArrayList<String>();
+    private static List<String> beanNameList;
 
-    private Map<String, Object> ioc = new HashMap<String, Object>();
+    private static Map<String, Object> ioc;
+
+    private static Map<String, Method> handlerAdapter;
+
+    static {
+        contextConfig = new Properties();
+
+        beanNameList = new ArrayList<String>();
+
+        ioc = new HashMap<String, Object>();
+
+        handlerAdapter = new HashMap<>();
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -35,7 +49,22 @@ public class MyDispatcherServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        //6.等待请求并执行
+        doDispatch(req,resp);
+    }
 
+    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException{
+        String url = req.getRequestURI();
+        String contextPath = req.getContextPath();
+
+        url = url.replace(contextPath,"").replaceAll("/+","/");
+
+        if (!handlerAdapter.containsKey(url)) {
+            resp.getWriter().write("404 Not Found");
+        }
+
+        Method method = handlerAdapter.get(url);
+        System.out.println(method);
     }
 
     @Override
@@ -62,6 +91,40 @@ public class MyDispatcherServlet extends HttpServlet {
     }
 
     private void initHandlerMapping() {
+        if (ioc.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<String, Object> entry : ioc.entrySet()) {
+            Class<?> clazz = entry.getValue().getClass();
+
+            if (!clazz.isAnnotationPresent(MyController.class)) {
+                continue;
+            }
+
+            String baseUrl = "";
+
+            if (clazz.isAnnotationPresent(MyRequestMapping.class)) {
+                MyRequestMapping myRequestMapping = clazz.getAnnotation(MyRequestMapping.class);
+                baseUrl = myRequestMapping.value();
+            }
+
+            Method[] methods = clazz.getMethods();
+            for (Method method : methods) {
+                if (!method.isAnnotationPresent(MyRequestMapping.class)) {
+                    continue;
+                }
+
+                MyRequestMapping myRequestMapping = method.getAnnotation(MyRequestMapping.class);
+
+                //把重复的/替换成单斜杠
+                String methodUrl = ("/" + baseUrl + myRequestMapping.value()).replaceAll("/+","/");
+                handlerAdapter.put(methodUrl,method);
+
+                System.out.println("mapping:" + methodUrl + "," + method);
+            }
+        }
+
         System.out.println("----->初始化HandlerMapping完成");
     }
 
